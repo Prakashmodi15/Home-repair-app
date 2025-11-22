@@ -1,36 +1,35 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Live Triangle Editor</title>
-<style>
-body{margin:0;background:#eef2f7;font-family:sans-serif;}#canvas{background:#fff;width:100%;height:60vh;touch-action:none;}input{padding:6px;margin:4px;border-radius:6px;border:1px solid #ccc;} .row{padding:8px;display:flex;flex-wrap:wrap;gap:6px;}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<canvas id="canvas"></canvas>
-<div class="row">
-<input id="sideA" placeholder="Side a (BC)"> 
-<input id="sideB" placeholder="Side b (CA)"> 
-<input id="sideC" placeholder="Side c (AB)"> 
-<input id="angleA" placeholder="∠A">
-<input id="angleB" placeholder="∠B">
-<input id="angleC" placeholder="∠C">
+
+<div id="topbar">
+  <span>Live Triangle Editor</span>
+  <button id="zoomOut">−</button>
+  <span id="zoomLabel">100%</span>
+  <button id="zoomIn">+</button>
 </div>
-<script>
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-function resize(){canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;}resize();window.onresize=resize;
-let A={x:150,y:300},B={x:450,y:300},C={x:250,y:80};
-function dist(p,q){return Math.hypot(p.x-q.x,p.y-q.y);} 
-function angle(a,b,c){let ab=dist(a,b),cb=dist(c,b),ac=dist(a,c);return Math.acos((ab*ab+cb*cb-ac*ac)/(2*ab*cb))*180/Math.PI;}
-function draw(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.lineWidth=3;ctx.strokeStyle="#0066ff";ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.closePath();ctx.stroke(); [A,B,C].forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);ctx.fill();});}
-function updateInputs(){sideA.value=dist(B,C).toFixed(2);sideB.value=dist(C,A).toFixed(2);sideC.value=dist(A,B).toFixed(2);angleA.value=angle(B,A,C).toFixed(2);angleB.value=angle(A,B,C).toFixed(2);angleC.value=angle(A,C,B).toFixed(2);} 
-let drag=null;canvas.onpointerdown=e=>{let x=e.offsetX,y=e.offsetY;[A,B,C].forEach(p=>{if(dist({x,y},p)<10)drag=p;});};
-canvas.onpointermove=e=>{if(!drag)return;drag.x=e.offsetX;drag.y=e.offsetY;updateInputs();draw();};canvas.onpointerup=()=>drag=null;
-function solveBySides(){let a=parseFloat(sideA.value),b=parseFloat(sideB.value),c=parseFloat(sideC.value);if(a&&b&&c){let scale=200/Math.max(a,b,c);A={x:canvas.width/2-c*scale/2,y:canvas.height/2+100};B={x:A.x+c*scale,y:A.y};let cosA=(b*b+c*c-a*a)/(2*b*c);let angA=Math.acos(cosA);C={x:A.x+b*scale*Math.cos(angA),y:A.y-b*scale*Math.sin(angA)};draw();updateInputs();}}
-[sideA,sideB,sideC].forEach(inp=>inp.onchange=solveBySides);
-draw();updateInputs();
-</script>
+
+<canvas id="canvas"></canvas>
+
+<div id="panel">
+  <div class="row"><span>Side a (BC) = </span><input id="sideA"></div>
+  <div class="row"><span>Side b (CA) = </span><input id="sideB"></div>
+  <div class="row"><span>Side c (AB) = </span><input id="sideC"></div>
+
+  <div class="row"><span>∠A = </span><input id="angleA"></div>
+  <div class="row"><span>∠B = </span><input id="angleB"></div>
+  <div class="row"><span>∠C = </span><input id="angleC"></div>
+
+  <div class="row"><span>Area = </span><span id="area"></span></div>
+  <div class="row"><span>Perimeter = </span><span id="peri"></span></div>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
