@@ -1,287 +1,54 @@
-<!doctype html>
-
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Naapi‑Amin Style Shape Editor</title>
+<meta charset="UTF-8">
+<title>Live Triangle Editor – Drag + Edit + Lock</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
-:root{--bg:#f6f8fa;--card:#fff;--muted:#556;--accent:#0b74de}
-[data-theme="dark"]{--bg:#071018;--card:#071722;--muted:#bcd;--accent:#39a0ff}
-*{box-sizing:border-box;font-family:Inter,system-ui,Arial}
-html,body{height:100%;margin:0;background:var(--bg);color:var(--muted)}
-.app{max-width:1100px;margin:8px auto;padding:8px;display:flex;flex-direction:column;gap:10px}
-.top{background:var(--card);padding:8px;border-radius:10px;display:flex;flex-direction:column;align-items:center}
-#canvasWrap{background:#fff;border-radius:8px;padding:8px;width:100%;max-width:980px;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
-svg{width:100%;height:360px;touch-action:none}
-.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.control-card{background:var(--card);padding:8px;border-radius:8px;box-shadow:0 3px 10px rgba(2,6,23,0.04)}
-.btn{padding:8px 12px;border-radius:8px;border:none;background:var(--accent);color:#fff}
-.small{font-size:13px;color:var(--muted)}
-.inputs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.input-row{display:flex;flex-direction:column;gap:6px}
-label{font-size:12px}
-input[type=number]{padding:6px;border-radius:6px;border:1px solid #e6eef7}
-select{padding:6px;border-radius:6px}
-.list{max-height:220px;overflow:auto}
-.summary{display:flex;gap:12px;flex-wrap:wrap}
-.legend{display:flex;gap:8px;align-items:center}
-.footer{display:flex;justify-content:space-between;align-items:center}
-@media(max-width:900px){svg{height:300px}.inputs{grid-template-columns:1fr}}
-.point{cursor:pointer}
+/* CSS PART — Will come in Part–2 */
 </style>
 </head>
+
 <body>
-<div class="app" id="app" data-theme="light">
-  <div class="top control-card">
-    <div style="display:flex;gap:12px;align-items:center;width:100%;justify-content:space-between">
-      <h3 style="margin:0">Naapi‑Amin Style Shape Editor</h3>
-      <div style="display:flex;gap:8px;align-items:center">
-        <label><input id="darkToggle" type="checkbox"> Dark</label>
-        <button id="exportSvg" class="btn">Export SVG</button>
-      </div>
+
+<div class="topbar">
+  <h2>Live Triangle Editor</h2>
+  <button id="scaleMinus">−</button>
+  <span id="scaleValue">100%</span>
+  <button id="scalePlus">+</button>
+</div>
+
+<div class="wrap">
+  <svg id="canvas" width="100%" height="520"></svg>
+
+  <!-- Popup for Editing -->
+  <div id="editPopup" class="popup">
+    <div id="editTitle"></div>
+    <input id="editInput" type="number" step="0.1" />
+    <label><input type="checkbox" id="editLock"> Lock</label>
+
+    <div class="btnRow">
+      <button id="applyEdit">Apply</button>
+      <button id="cancelEdit">Cancel</button>
     </div>
-    <div class="controls" style="margin-top:8px;width:100%">
-      <div class="control-card" style="padding:6px">
-        <label>Mode</label>
-        <select id="modeSel"><option value="both">Free + Manual</option><option value="free">Free only</option><option value="manual">Manual only</option></select>
-      </div>
-      <div class="control-card">
-        <label>Points (3-8)</label>
-        <select id="pointsCount"> <option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select>
-      </div>
-      <div class="control-card">
-        <label>Pivot Vertex</label>
-        <select id="pivotSel"></select>
-      </div>
-      <div class="control-card">
-        <label>Show</label>
-        <div><label><input type="checkbox" id="showGrid"> Grid</label> <label><input type="checkbox" id="showFans" checked> Fan lines</label></div>
-      </div>
-      <div style="flex:1"></div>
-      <div style="display:flex;gap:8px">
-        <button id="resetBtn" class="btn" style="background:#d32f2f">Reset</button>
-      </div>
-    </div>
-  </div>  <div id="canvasWrap">
-    <svg id="svg" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
-  </div>  <div class="control-card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <strong>Manual Inputs (fan & edge lengths / angles)</strong>
-      <div class="small">Edit any value → click Apply</div>
-    </div>
-    <div class="inputs" id="manualInputs"></div>
-    <div style="margin-top:8px;display:flex;gap:8px"><button id="applyBtn" class="btn">Apply</button><button id="calcArea" class="btn" style="background:#388e3c">Calculate Area</button></div>
-    <div style="margin-top:8px" class="summary">
-      <div class="small">Area: <span id="areaVal">0</span></div>
-      <div class="small">Perimeter: <span id="perimVal">0</span></div>
-      <div class="small">Mode: <span id="modeText"></span></div>
-    </div>
-  </div></div><script>
-// Jai Shree Ram
-(() => {
-  const svg = document.getElementById('svg');
-  const modeSel = document.getElementById('modeSel');
-  const pointsCount = document.getElementById('pointsCount');
-  const pivotSel = document.getElementById('pivotSel');
-  const manualInputs = document.getElementById('manualInputs');
-  const applyBtn = document.getElementById('applyBtn');
-  const resetBtn = document.getElementById('resetBtn');
-  const areaVal = document.getElementById('areaVal');
-  const perimVal = document.getElementById('perimVal');
-  const showFans = document.getElementById('showFans');
-  const showGrid = document.getElementById('showGrid');
-  const calcArea = document.getElementById('calcArea');
-  const exportSvg = document.getElementById('exportSvg');
-  const darkToggle = document.getElementById('darkToggle');
+  </div>
+</div>
 
-  let state = {
-    mode: 'both',
-    n: 5,
-    pivot: 0,
-    pts: [], // {x,y}
-    fans: [], // distances from pivot to each vertex
-    edges: [], // distances between consecutive vertices
-    angles: [], // internal angles at vertices (deg) optional
-    dragging: null
-  };
+<div class="infoRow">
+  <div class="box">Side a (BC) = <span id="sideA">—</span></div>
+  <div class="box">Side b (CA) = <span id="sideB">—</span></div>
+  <div class="box">Side c (AB) = <span id="sideC">—</span></div>
+  <div class="box">∠A = <span id="angA">—</span></div>
+  <div class="box">∠B = <span id="angB">—</span></div>
+  <div class="box">∠C = <span id="angC">—</span></div>
+  <div class="box">Area = <span id="area">—</span></div>
+  <div class="box">Perimeter = <span id="peri">—</span></div>
+</div>
 
-  function randBetween(a,b){return a + Math.random()*(b-a)}
+<script>
+/* JS Part Will Come in PART–3 */
+</script>
 
-  function initPoints(n){
-    state.n = n;
-    state.pts = [];
-    const cx = 500, cy=300, r=120;
-    for(let i=0;i<n;i++){
-      const ang = (i/(n))*Math.PI*2 - Math.PI/6;
-      state.pts.push({x: cx + r*Math.cos(ang) + randBetween(-30,30), y: cy + r*Math.sin(ang) + randBetween(-30,30)});
-    }
-    computeDerived(); renderAll(); renderManualInputs(); populatePivot();
-  }
-
-  function computeDerived(){
-    const n = state.n; state.fans = []; state.edges = []; state.angles = [];
-    for(let i=0;i<n;i++){
-      const p = state.pts[i];
-      const d = dist(p, state.pts[state.pivot]); state.fans.push(d);
-    }
-    for(let i=0;i<n;i++){
-      const a = state.pts[i], b = state.pts[(i+1)%n]; state.edges.push(dist(a,b));
-    }
-    for(let i=0;i<n;i++) state.angles.push(internalAngle(i));
-  }
-
-  function internalAngle(i){
-    const prev = state.pts[(i-1+state.n)%state.n]; const cur = state.pts[i]; const next = state.pts[(i+1)%state.n];
-    const v1 = {x: prev.x - cur.x, y: prev.y - cur.y}; const v2 = {x: next.x - cur.x, y: next.y - cur.y};
-    const ang = Math.acos(clamp((v1.x*v2.x + v1.y*v2.y) / (Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y)||1)));
-    return ang*180/Math.PI;
-  }
-
-  function clamp(x){if(x>1) return 1; if(x<-1) return -1; return x}
-
-  function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
-
-  // Rendering
-  function renderAll(){
-    svg.innerHTML='';
-    if(showGrid.checked) drawGrid();
-    // fan lines
-    if(showFans.checked){
-      const g = makeGroup('fans');
-      for(let i=0;i<state.n;i++){
-        const p = state.pts[i]; const pv = state.pts[state.pivot];
-        const l = makeLine(pv.x,pv.y,p.x,p.y,'green',1.6); g.appendChild(l);
-      }
-      svg.appendChild(g);
-    }
-    // polygon edges
-    const poly = makeGroup('poly');
-    for(let i=0;i<state.n;i++){
-      const a = state.pts[i], b = state.pts[(i+1)%state.n]; poly.appendChild(makeLine(a.x,a.y,b.x,b.y,'#1e88e5',2));
-    }
-    svg.appendChild(poly);
-    // points
-    for(let i=0;i<state.n;i++){
-      const p = state.pts[i]; const g = makeGroup('pt'+i);
-      const circle = makeCircle(p.x,p.y,6,'#000'); circle.classList.add('point'); circle.dataset.index=i; g.appendChild(circle);
-      const txt = makeText(p.x+10,p.y-10,`P${i}`,'12','#333'); g.appendChild(txt);
-      const len = document.createElementNS('http://www.w3.org/2000/svg','text'); len.setAttribute('x', (p.x+state.pts[(i+1)%state.n].x)/2 ); len.setAttribute('y', (p.y+state.pts[(i+1)%state.n].y)/2 ); len.setAttribute('font-size',12); len.setAttribute('fill','#333'); len.textContent = state.edges[i].toFixed(2); g.appendChild(len);
-      svg.appendChild(g);
-    }
-    // area text
-    const area = polygonArea(state.pts); areaVal.textContent = area.toFixed(3);
-    const perim = state.edges.reduce((s,v)=>s+v,0); perimVal.textContent = perim.toFixed(3);
-  }
-
-  function makeGroup(id){ const g = document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('id',id); return g; }
-  function makeLine(x1,y1,x2,y2,stroke='black',width=1){ const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2); l.setAttribute('stroke',stroke); l.setAttribute('stroke-width',width); return l; }
-  function makeCircle(x,y,r,fill){ const c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',r); c.setAttribute('fill',fill); c.setAttribute('stroke','#fff'); c.setAttribute('stroke-width',1.5); return c; }
-  function makeText(x,y,text,fs=12,color='#333'){ const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',x); t.setAttribute('y',y); t.setAttribute('font-size',fs); t.setAttribute('fill',color); t.textContent=text; return t; }
-
-  function drawGrid(){ const g=makeGroup('grid'); for(let x=0;x<=1000;x+=50){ g.appendChild(makeLine(x,0,x,700,'#eee',0.7)); } for(let y=0;y<=700;y+=50){ g.appendChild(makeLine(0,y,1000,y,'#eee',0.7)); } svg.appendChild(g); }
-
-  // Manual inputs UI
-  function renderManualInputs(){ manualInputs.innerHTML='';
-    // fans inputs (distance from pivot to vertex i)
-    const n = state.n; const pivot = state.pivot;
-    for(let i=0;i<n;i++){
-      const wrap=document.createElement('div'); wrap.className='input-row';
-      const lbl=document.createElement('label'); lbl.textContent = `fan[${i}] (P${state.pivot}-P${i})`;
-      const inp=document.createElement('input'); inp.type='number'; inp.step='0.01'; inp.value = state.fans[i].toFixed(2); inp.dataset.type='fan'; inp.dataset.idx=i;
-      wrap.appendChild(lbl); wrap.appendChild(inp); manualInputs.appendChild(wrap);
-    }
-    // edges
-    for(let i=0;i<n;i++){
-      const wrap=document.createElement('div'); wrap.className='input-row';
-      const lbl=document.createElement('label'); lbl.textContent = `edge[${i}] (P${i}-P${(i+1)%n})`;
-      const inp=document.createElement('input'); inp.type='number'; inp.step='0.01'; inp.value = state.edges[i].toFixed(2); inp.dataset.type='edge'; inp.dataset.idx=i;
-      wrap.appendChild(lbl); wrap.appendChild(inp); manualInputs.appendChild(wrap);
-    }
-  }
-
-  // Apply manual values: we expect fans[] and edges[] present. We'll reconstruct vertex positions by fan-triangulation.
-  function applyManual(){
-    // read inputs
-    const inputs = manualInputs.querySelectorAll('input');
-    const n = state.n; const newFans = state.fans.slice(); const newEdges = state.edges.slice();
-    inputs.forEach(inp=>{
-      const val = parseFloat(inp.value) || 0; const t=inp.dataset.type; const idx=parseInt(inp.dataset.idx);
-      if(t==='fan') newFans[idx]=val; else newEdges[idx]=val;
-    });
-    // Reconstruct positions: place pivot at center, place vertex pivot+1 on +x axis at distance fan[pivot+1]
-    const pv = state.pivot; const cx=500,cy=300; const pts = Array(n).fill(null).map(()=>({x:0,y:0}));
-    pts[pv] = {x:cx,y:cy};
-    // next vertex index
-    const i1 = (pv+1)%n; pts[i1] = {x: cx + newFans[i1], y: cy};
-    // for each next triangle (pv, i, i+1) compute coordinates of i+1 using known fan distances and edge length
-    // For k from 1 to n-1
-    for(let k=1;k<n;k++){
-      const i = (pv + k)%n; const j = (pv + k + 1)%n; if(pts[j] && pts[j].x) continue; // already placed
-      // we know positions of pts[pv] and pts[i]
-      const A = pts[pv]; const B = pts[i];
-      const r1 = newFans[j]; // distance from A to new vertex
-      const r2 = newEdges[i]; // distance between B and new vertex
-      // place C such that |AC|=r1 and |BC|=r2 -> intersection of two circles
-      const solutions = circleCircleIntersection(A.x,A.y,r1,B.x,B.y,r2);
-      if(solutions.length===0){ console.warn('no intersection for',i,j); pts[j] = {x:B.x + r2, y:B.y}; continue; }
-      // choose solution that keeps polygon non-self-intersecting: choose the one with positive orientation (approx)
-      const chosen = solutions[0]; pts[j] = chosen;
-    }
-    state.pts = pts; computeDerived(); renderAll(); renderManualInputs();
-  }
-
-  function circleCircleIntersection(x0,y0,r0,x1,y1,r1){
-    // returns array of solutions {x,y}
-    const dx = x1-x0, dy = y1-y0; const d = Math.hypot(dx,dy);
-    if(d>r0+r1+1e-6) return []; if(d<Math.abs(r0-r1)-1e-6) return []; if(d===0 && Math.abs(r0-r1)<1e-6) return [];
-    const a = (r0*r0 - r1*r1 + d*d)/(2*d);
-    const h2 = r0*r0 - a*a; const h = h2<=0?0:Math.sqrt(h2);
-    const xm = x0 + a*dx/d; const ym = y0 + a*dy/d;
-    const rx = -dy*(h/d); const ry = dx*(h/d);
-    const xi1 = xm + rx; const yi1 = ym + ry; const xi2 = xm - rx; const yi2 = ym - ry;
-    return [{x:xi1,y:yi1},{x:xi2,y:yi2}];
-  }
-
-  // polygon area (shoelace)
-  function polygonArea(pts){ let a=0; for(let i=0;i<pts.length;i++){ const j=(i+1)%pts.length; a += pts[i].x*pts[j].y - pts[j].x*pts[i].y; } return Math.abs(a)/2; }
-
-  // events: clicking on svg to add points in free mode
-  svg.addEventListener('pointerdown', e=>{
-    const mode = modeSel.value; const rect = svg.getBoundingClientRect(); const x = (e.clientX - rect.left) * (1000/rect.width); const y = (e.clientY - rect.top)*(700/rect.height);
-    if(mode === 'free' || mode==='both'){
-      // if less than n points, add or move nearest
-      // if user clicked near a point, start drag
-      const hit = hitPoint(x,y);
-      if(hit>=0){ state.dragging = hit; }
-      else if(state.pts.length < state.n){ state.pts[state.pts.length] = {x,y}; computeDerived(); renderAll(); renderManualInputs(); }
-    }
-  });
-  svg.addEventListener('pointermove', e=>{
-    if(state.dragging==null) return; const rect = svg.getBoundingClientRect(); const x = (e.clientX - rect.left) * (1000/rect.width); const y = (e.clientY - rect.top)*(700/rect.height); state.pts[state.dragging] = {x,y}; computeDerived(); renderAll(); renderManualInputs(); });
-  svg.addEventListener('pointerup', e=>{ state.dragging=null; });
-
-  function hitPoint(x,y){ for(let i=0;i<state.pts.length;i++){ if(Math.hypot(state.pts[i].x-x,state.pts[i].y-y) < 12) return i; } return -1; }
-
-  // allow dragging by touching the circle elements: we attached pointer events at svg level
-
-  // UI handlers
-  pointsCount.addEventListener('change', ()=>{ initPoints(parseInt(pointsCount.value)); });
-  modeSel.addEventListener('change', ()=>{ state.mode = modeSel.value; document.getElementById('modeText').textContent = state.mode; });
-  pivotSel.addEventListener('change', ()=>{ state.pivot = parseInt(pivotSel.value); computeDerived(); renderAll(); renderManualInputs(); });
-  applyBtn.addEventListener('click', ()=>{ applyManual(); });
-  calcArea.addEventListener('click', ()=>{ alert('Area = '+polygonArea(state.pts).toFixed(4)+' square px. Convert to meters using scale.'); });
-  resetBtn.addEventListener('click', ()=>{ initPoints(state.n); });
-  showFans.addEventListener('change', renderAll); showGrid.addEventListener('change', renderAll);
-  exportSvg.addEventListener('click', ()=>{ const serializer = new XMLSerializer(); const source = serializer.serializeToString(svg); const blob = new Blob([source],{type:'image/svg+xml'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='shape.svg'; a.click(); URL.revokeObjectURL(url); });
-  darkToggle.addEventListener('change', e=>{ document.getElementById('app').dataset.theme = e.target.checked ? 'dark':'light'; });
-
-  function populatePivot(){ pivotSel.innerHTML=''; for(let i=0;i<state.n;i++){ const opt=document.createElement('option'); opt.value=i; opt.textContent = 'P'+i; pivotSel.appendChild(opt);} pivotSel.value = state.pivot; }
-
-  // init
-  initPoints(5);
-  pointsCount.value = 5; modeSel.value='both'; document.getElementById('modeText').textContent = 'both';
-
-})();
-</script></body>
+</body>
 </html>
