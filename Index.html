@@ -4,10 +4,7 @@
 <meta charset="UTF-8">
 <title>Live Triangle Editor – Drag + Edit + Lock</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
-<style>
-/* CSS PART — Will come in Part–2 */
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 
 <body>
@@ -20,10 +17,10 @@
 </div>
 
 <div class="wrap">
-  <svg id="canvas" width="100%" height="520"></svg>
+  <svg id="canvas" width="100%" height="520" xmlns="http://www.w3.org/2000/svg"></svg>
 
   <!-- Popup for Editing -->
-  <div id="editPopup" class="popup">
+  <div id="editPopup" class="popup" style="display:none; position:absolute;">
     <div id="editTitle"></div>
     <input id="editInput" type="number" step="0.1" />
     <label><input type="checkbox" id="editLock"> Lock</label>
@@ -46,9 +43,6 @@
   <div class="box">Perimeter = <span id="peri">—</span></div>
 </div>
 
-<script>
-/* JS Part Will Come in PART–3 */
-</script>
-
+<script src="script.js"></script>
 </body>
 </html>
