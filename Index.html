@@ -1,35 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live Triangle Editor</title>
-<link rel="stylesheet" href="style.css">
+  <title>Naapi-Amin Pro — Triangle Editor</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div id="topbar">
-  <span>Live Triangle Editor</span>
-  <button id="zoomOut">−</button>
-  <span id="zoomLabel">100%</span>
-  <button id="zoomIn">+</button>
-</div>
+  <div id="app"></div>
 
-<canvas id="canvas"></canvas>
+  <script src="js/utils.js"></script>
+  <script src="js/draw.js"></script>
+  <script src="js/logic.js"></script>
+  <script src="js/events.js"></script>
+  <script src="js/main.js"></script>
 
-<div id="panel">
-  <div class="row"><span>Side a (BC) = </span><input id="sideA" /></div>
-  <div class="row"><span>Side b (CA) = </span><input id="sideB" /></div>
-  <div class="row"><span>Side c (AB) = </span><input id="sideC" /></div>
-
-  <div class="row"><span>∠A = </span><input id="angleA" /></div>
-  <div class="row"><span>∠B = </span><input id="angleB" /></div>
-  <div class="row"><span>∠C = </span><input id="angleC" /></div>
-
-  <div class="row"><span>Area = </span><span id="area"></span></div>
-  <div class="row"><span>Perimeter = </span><span id="peri"></span></div>
-</div>
-
-<script src="script.js"></script>
 </body>
 </html>
