@@ -76,4 +76,486 @@ canvas{width:100%;height:560px;display:block;border-radius:6px;background:#fff;t
   <script src="js/script.js"></script>
 
 </body>
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Naapi-Amin Pro — Polygon (Unlimited Points)</title>
+<style>
+:root{
+  --bg:#f6f9ff; --panel:#fff; --muted:#234; --accent:#163aa2;
+  --accent-2:#0b74de; --warn:#f39c12; --ok:#27ae60;
+}
+html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,Segoe UI,Roboto,Arial;}
+.app{max-width:1100px;margin:10px auto;padding:12px;display:grid;grid-template-columns:1fr 320px;gap:12px;align-items:start}
+.canvasWrap{background:var(--panel);border-radius:10px;padding:10px;box-shadow:0 8px 26px rgba(10,20,30,0.06);position:relative;overflow:hidden}
+#cv{width:100%;height:680px;border-radius:8px;background:#fff;touch-action:none;display:block}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.btn{padding:8px 10px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
+.btn.secondary{background:#eef3ff;color:var(--accent);border:1px solid #dce9ff}
+.infoCard{background:linear-gradient(180deg,#fff,#fbfeff);padding:10px;border-radius:8px;box-shadow:0 4px 12px rgba(20,40,80,0.04)}
+.inline{position:absolute;display:none;background:#fff;border-radius:8px;padding:8px;box-shadow:0 8px 20px rgba(20,40,80,0.08);z-index:60;width:180px}
+.inline input{width:100%;padding:6px;border-radius:6px;border:1px solid #ddd;font-size:14px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed #eee;font-size:14px}
+.row:last-child{border-bottom:0}
+.small{font-size:12px;color:#666}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.legend .item{display:flex;align-items:center;gap:6px}
+.swatch{width:14px;height:10px;border-radius:3px}
+.footerNote{font-size:12px;color:#666;margin-top:8px}
+kbd{background:#111;color:#fff;padding:2px 6px;border-radius:4px;font-size:12px}
+.titleBar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hint{font-size:13px;color:#333}
+</style>
+</head>
+<body>
+<div class="app">
+  <div>
+    <div class="titleBar">
+      <div>
+        <h3 style="margin:0">Naapi-Amin Pro — Polygon Editor</h3>
+        <div class="small">Click to add point • Drag to move • Double-click vertex to edit</div>
+      </div>
+      <div>
+        <button id="resetBtn" class="btn secondary">Reset</button>
+        <button id="exportSVG" class="btn">Export SVG</button>
+        <button id="exportPNG" class="btn">Export PNG</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="gridToggle" class="btn secondary">Grid</button>
+      <button id="snapToggle" class="btn secondary">Snap</button>
+      <button id="constructToggle" class="btn secondary">Construct</button>
+      <button id="zoomIn" class="btn secondary">Zoom +</button>
+      <button id="zoomOut" class="btn secondary">Zoom −</button>
+      <button id="fitBtn" class="btn secondary">Fit</button>
+      <div style="flex:1"></div>
+      <div class="small hint">Selected: <span id="selCount">0</span></div>
+    </div>
+
+    <div id="canvasWrap" class="canvasWrap">
+      <canvas id="cv" tabindex="0"></canvas>
+
+      <div id="inline" class="inline" aria-hidden="true">
+        <div id="inlineTitle" style="font-weight:700;margin-bottom:6px">Edit</div>
+        <input id="inlineInput" />
+      </div>
+    </div>
+
+  </div>
+
+  <div>
+    <div class="infoCard">
+      <div class="row"><div>Vertices</div><div id="vCount">0</div></div>
+      <div class="row"><div>Perimeter</div><div id="peri">—</div></div>
+      <div class="row"><div>Area</div><div id="area">—</div></div>
+      <div class="row"><div>Type</div><div id="ptype">—</div></div>
+      <div class="row"><div>Bounding box</div><div id="bbox">—</div></div>
+      <div style="margin-top:6px;font-weight:700">Vertex details</div>
+      <div id="vertexList" style="max-height:360px;overflow:auto;padding-top:6px"></div>
+
+      <div class="legend">
+        <div class="item"><div class="swatch" style="background:#163aa2"></div><div class="small">Edges</div></div>
+        <div class="item"><div class="swatch" style="background:#000"></div><div class="small">Vertices</div></div>
+        <div class="item"><div class="swatch" style="background:#8e44ad"></div><div class="small">Angle bisectors</div></div>
+        <div class="item"><div class="swatch" style="background:#f39c12"></div><div class="small">Helpers</div></div>
+      </div>
+
+      <div class="footerNote">Shortcuts: <kbd>Del</kbd> delete selected vertex • <kbd>Shift</kbd>+drag = duplicate move</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   Polygon editor — single file
+   ========================= */
+
+/* State & DOM */
+const canvas = document.getElementById('cv');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+
+const inline = document.getElementById('inline');
+const inlineTitle = document.getElementById('inlineTitle');
+const inlineInput = document.getElementById('inlineInput');
+
+const vCountEl = document.getElementById('vCount'), periEl = document.getElementById('peri'), areaEl = document.getElementById('area'), ptypeEl = document.getElementById('ptype'), bboxEl = document.getElementById('bbox');
+const vertexListEl = document.getElementById('vertexList'), selCountEl = document.getElementById('selCount');
+
+let showGrid=false, showConstruct=false, snapOn=false;
+let pxPerUnit = 1.6, pxDefault = 1.6;
+let points = [ /* {x,y} in screen pixels */ ];
+let dragging = null; // { idx, offX, offY, duplicate }
+let hoverIdx = null;
+let selectedIdx = null;
+let popupTarget = null;
+
+/* canvas fit */
+function fitCanvas(){ const r = canvas.getBoundingClientRect(); canvas.width = Math.round(r.width); canvas.height = Math.round(r.height); }
+window.addEventListener('resize', ()=>{ fitCanvas(); render(); });
+fitCanvas();
+
+/* helpers */
+const EPS = 1e-12;
+function distance(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function pointInRect(px,py,x,y,w,h){ return px>=x && px<=x+w && py>=y && py<=y+h; }
+function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
+function round3(x){ return Math.round(x*1000)/1000; }
+
+/* coordinate helpers: convert between screen and 'units' (unit = px/pxPerUnit) optionally */
+function toUnitsLen(len){ return len/pxPerUnit; }
+function fromUnitsLen(u){ return u*pxPerUnit; }
+
+/* Drawing primitives */
+function clear(){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+function drawGrid(){
+  if(!showGrid) return;
+  const gap = 25;
+  ctx.save();
+  ctx.strokeStyle = '#eef6ff'; ctx.lineWidth = 1;
+  for(let x = 0; x < canvas.width; x += gap){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+  }
+  for(let y = 0; y < canvas.height; y += gap){
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawLine(A,B,w=4,color='#163aa2',dashed=false){
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.setLineDash(dashed? [8,6]: []); ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); ctx.restore();
+}
+function drawCircle(P,r=6,color='#000',fill=true){
+  ctx.beginPath(); ctx.fillStyle=color; ctx.arc(P.x,P.y,r,0,Math.PI*2); if(fill) ctx.fill();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = '#fff'; ctx.stroke();
+}
+function drawText(x,y,t,align='left'){ ctx.font='13px system-ui'; ctx.fillStyle='#111'; ctx.textAlign = align; ctx.fillText(t,x,y); }
+
+/* Geometry computations for polygon */
+function polygonPerimeter(pts){
+  if(pts.length<2) return 0;
+  let p=0; for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length]; p += distance(a,b); } return p;
+}
+function polygonArea(pts){
+  // shoelace on screen units, convert to unit area by (1/pxPerUnit^2) if needed; but we'll show area in screen units / px^2 converted to 'units^2'
+  if(pts.length < 3) return 0;
+  let s=0;
+  for(let i=0;i<pts.length;i++){
+    const a = pts[i], b = pts[(i+1)%pts.length];
+    s += a.x*b.y - b.x*a.y;
+  }
+  const areaScreen = Math.abs(s)/2; // pixels^2
+  const areaUnits = areaScreen / (pxPerUnit*pxPerUnit);
+  return areaUnits;
+}
+function polygonBoundingBox(pts){
+  if(pts.length===0) return null;
+  let minx = Infinity, miny=Infinity, maxx=-Infinity, maxy=-Infinity;
+  pts.forEach(p => { minx = Math.min(minx,p.x); miny = Math.min(miny,p.y); maxx = Math.max(maxx,p.x); maxy = Math.max(maxy,p.y); });
+  // convert to units
+  return { x: round3((minx)/pxPerUnit), y: round3((miny)/pxPerUnit), w: round3((maxx-minx)/pxPerUnit), h: round3((maxy-miny)/pxPerUnit) };
+}
+function isConvex(pts){
+  // true if polygon is convex (assumes vertices in order added)
+  if(pts.length < 4) return true;
+  let sign = 0;
+  for(let i=0;i<pts.length;i++){
+    const a = pts[i], b = pts[(i+1)%pts.length], c = pts[(i+2)%pts.length];
+    const cross = (b.x - a.x)*(c.y - b.y) - (b.y - a.y)*(c.x - b.x);
+    if(Math.abs(cross) < 1e-6) continue;
+    const s = Math.sign(cross);
+    if(sign === 0) sign = s; else if(s !== sign) return false;
+  }
+  return true;
+}
+function angleAtIndex(i, pts){
+  if(pts.length < 3) return null;
+  const prev = pts[(i-1+pts.length)%pts.length], cur = pts[i], next = pts[(i+1)%pts.length];
+  const v1 = {x: prev.x - cur.x, y: prev.y - cur.y}, v2 = {x: next.x - cur.x, y: next.y - cur.y};
+  const dp = v1.x*v2.x + v1.y*v2.y;
+  const a1 = Math.hypot(v1.x,v1.y), a2 = Math.hypot(v2.x,v2.y);
+  if(a1<1e-9 || a2<1e-9) return null;
+  const cosv = clamp(dp/(a1*a2), -1, 1);
+  return toDeg(Math.acos(cosv));
+}
+function toDeg(r){ return r * 180 / Math.PI; }
+function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+
+/* Render flow */
+function render(){
+  fitCanvas();
+  clear();
+  drawGrid();
+
+  // edges
+  for(let i=0;i<points.length;i++){
+    const A = points[i], B = points[(i+1)%points.length];
+    drawLine(A,B,4,'#163aa2');
+  }
+
+  // constructions
+  if(showConstruct && points.length >= 3){
+    for(let i=0;i<points.length;i++){
+      const cur = points[i];
+      // angle bisector approximate direction
+      const prev = points[(i-1+points.length)%points.length], next = points[(i+1)%points.length];
+      const bis = angleBisectorPoint(cur, prev, next);
+      if(bis) { ctx.beginPath(); ctx.moveTo(cur.x, cur.y); ctx.lineTo(bis.x, bis.y); ctx.strokeStyle = '#8e44ad'; ctx.lineWidth = 1.2; ctx.setLineDash([6,4]); ctx.stroke(); }
+      // small median-like helper to midpoint of next edge
+      const midNext = midpoint(next, points[(i+2)%points.length] || cur);
+      ctx.beginPath(); ctx.moveTo(cur.x, cur.y); ctx.lineTo(midNext.x, midNext.y); ctx.strokeStyle = '#f39c12'; ctx.lineWidth = 1; ctx.setLineDash([4,4]); ctx.stroke();
+    }
+  }
+
+  // selected highlight lines
+  if(selectedIdx !== null){
+    const s = points[selectedIdx], prev = points[(selectedIdx-1+points.length)%points.length], next = points[(selectedIdx+1)%points.length];
+    drawLine(s, prev, 3, '#0b74de', true);
+    drawLine(s, next, 3, '#0b74de', true);
+  }
+
+  // vertices
+  for(let i=0;i<points.length;i++){
+    const p = points[i];
+    drawCircle(p, (i===selectedIdx?10:7), '#000');
+    drawText(p.x+10, p.y-8, String(i));
+    const ang = angleAtIndex(i, points);
+    if(ang !== null) drawText(p.x+10, p.y+18, 'θ='+round3(ang)+'°');
+  }
+
+  // update info panel
+  updateInfoPanel();
+}
+
+/* Constructions helpers used above */
+function midpoint(A,B){ return {x:(A.x+B.x)/2, y:(A.y+B.y)/2}; }
+function angleBisectorPoint(V, P1, P2){
+  const a = Math.hypot(P1.x - P2.x, P1.y - P2.y);
+  const b = Math.hypot(V.x - P1.x, V.y - P1.y);
+  const c = Math.hypot(V.x - P2.x, V.y - P2.y);
+  if(b < EPS || c < EPS) return null;
+  const ux = (P1.x - V.x)/b + (P2.x - V.x)/c;
+  const uy = (P1.y - V.y)/b + (P2.y - V.y)/c;
+  const mag = Math.hypot(ux, uy); if(mag < EPS) return null;
+  const L = Math.max(30, (b+c)/6); // length in px
+  return { x: V.x + (ux/mag)*L, y: V.y + (uy/mag)*L };
+}
+
+/* Interaction: pointer add/drag/select/edit */
+let lastMouse = {x:0,y:0};
+canvas.addEventListener('pointerdown', (ev) => {
+  ev.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+  lastMouse = {x,y};
+  const hit = hitTestVertex(x,y);
+  if(hit !== null){
+    // start drag or edit
+    const duplicate = ev.shiftKey; // shift+drag duplicate
+    startDrag(hit, x - points[hit].x, y - points[hit].y, duplicate);
+    return;
+  }
+  // click on edge? if near edge insert vertex
+  const edgeHit = hitTestEdge(x,y);
+  if(edgeHit !== null){
+    const idx = edgeHit;
+    const newP = {x,y};
+    points.splice(idx+1, 0, newP);
+    selectedIdx = idx+1;
+    render();
+    return;
+  }
+  // otherwise create new vertex appended
+  points.push({x,y});
+  selectedIdx = points.length - 1;
+  render();
+});
+
+function startDrag(idx, offX, offY, duplicate=false){
+  dragging = { idx, offX, offY, duplicate };
+  canvas.setPointerCapture && canvas.setPointerCapture();
+}
+canvas.addEventListener('pointermove', (ev)=>{
+  const rect = canvas.getBoundingClientRect();
+  const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+  lastMouse = {x,y};
+  if(dragging){
+    const { idx, offX, offY, duplicate } = dragging;
+    let targetIdx = idx;
+    if(duplicate && ev.buttons === 1 && dragging.created !== true){
+      // create duplicate before moving
+      const copy = { x: points[idx].x, y: points[idx].y };
+      points.splice(idx+1, 0, copy);
+      dragging.idx = idx+1;
+      dragging.created = true;
+      targetIdx = idx+1;
+      selectedIdx = targetIdx;
+    }
+    const newX = x - offX, newY = y - offY;
+    points[targetIdx].x = snapOn ? Math.round(newX / 5) * 5 : newX;
+    points[targetIdx].y = snapOn ? Math.round(newY / 5) * 5 : newY;
+    render();
+    return;
+  } else {
+    // highlight hover vertex for UX
+    const h = hitTestVertex(x,y);
+    hoverIdx = h;
+    canvas.style.cursor = h !== null ? 'grab' : 'crosshair';
+  }
+});
+
+canvas.addEventListener('pointerup', (ev)=>{
+  dragging = null;
+});
+canvas.addEventListener('dblclick', (ev)=>{
+  const rect = canvas.getBoundingClientRect();
+  const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+  const h = hitTestVertex(x,y);
+  if(h !== null){
+    openInlineForVertex(h, x, y);
+    return;
+  }
+});
+
+/* hit testing */
+function hitTestVertex(x,y){
+  for(let i=0;i<points.length;i++){
+    if(Math.hypot(points[i].x - x, points[i].y - y) < 12) return i;
+  }
+  return null;
+}
+function hitTestEdge(x,y){
+  // return index i where segment i->i+1 is near (so we can insert after i)
+  const tol = 8;
+  for(let i=0;i<points.length;i++){
+    const A = points[i], B = points[(i+1)%points.length];
+    const d = distancePointToSegment({x,y}, A, B);
+    if(d < tol) return i;
+  }
+  return null;
+}
+function distancePointToSegment(P,A,B){
+  const vx = B.x - A.x, vy = B.y - A.y;
+  const wx = P.x - A.x, wy = P.y - A.y;
+  const c1 = vx*wx + vy*wy;
+  if(c1 <= 0) return Math.hypot(P.x-A.x, P.y-A.y);
+  const c2 = vx*vx + vy*vy;
+  if(c2 <= c1) return Math.hypot(P.x-B.x, P.y-B.y);
+  const t = c1 / c2;
+  const projx = A.x + t*vx, projy = A.y + t*vy;
+  return Math.hypot(P.x - projx, P.y - projy);
+}
+
+/* Inline editing (double-click vertex) */
+function openInlineForVertex(idx, clientX, clientY){
+  popupHide();
+  popupTarget = { type:'vertex', idx };
+  inlineTitle.innerText = `Vertex ${idx} (x,y)`;
+  inlineInput.value = Math.round(points[idx].x) + ',' + Math.round(points[idx].y);
+  showInlineAt(clientX, clientY);
+  inlineInput.focus(); inlineInput.select();
+}
+function showInlineAt(clientX, clientY){
+  const rect = wrap.getBoundingClientRect();
+  let left = clientX - rect.left + 6;
+  let top = clientY - rect.top + 6;
+  left = Math.min(left, rect.width - 200); top = Math.min(top, rect.height - 80);
+  inline.style.left = left + 'px'; inline.style.top = top + 'px'; inline.style.display = 'block'; inline.setAttribute('aria-hidden','false');
+}
+function popupHide(){ inline.style.display='none'; inline.setAttribute('aria-hidden','true'); popupTarget=null; }
+inlineInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){ applyInline(); }
+  if(e.key === 'Escape'){ popupHide(); }
+});
+function applyInline(){
+  if(!popupTarget) { popupHide(); return; }
+  const val = inlineInput.value.trim();
+  if(popupTarget.type === 'vertex'){
+    const parts = val.split(',').map(s=>parseFloat(s.trim()));
+    if(parts.length>=2 && !isNaN(parts[0]) && !isNaN(parts[1])){
+      points[popupTarget.idx].x = parts[0];
+      points[popupTarget.idx].y = parts[1];
+      render();
+      popupHide(); return;
+    } else { alert('Enter "x,y" numbers'); return; }
+  }
+}
+
+/* keyboard controls */
+window.addEventListener('keydown',(e)=>{
+  if(e.key === 'Delete' || e.key === 'Backspace'){
+    if(selectedIdx !== null){ points.splice(selectedIdx,1); selectedIdx = null; render(); }
+  }
+});
+
+/* controls binding */
+document.getElementById('gridToggle').addEventListener('click',(e)=>{ showGrid = !showGrid; e.target.textContent = showGrid? 'Grid: ON':'Grid'; render(); });
+document.getElementById('constructToggle').addEventListener('click',(e)=>{ showConstruct = !showConstruct; e.target.textContent = showConstruct? 'Construct: ON':'Construct'; render(); });
+document.getElementById('snapToggle').addEventListener('click',(e)=>{ snapOn = !snapOn; e.target.textContent = snapOn? 'Snap: ON':'Snap'; });
+document.getElementById('zoomIn').addEventListener('click', ()=>{ pxPerUnit *= 1.2; render(); });
+document.getElementById('zoomOut').addEventListener('click', ()=>{ pxPerUnit /= 1.2; render(); });
+document.getElementById('fitBtn').addEventListener('click', ()=>{ pxPerUnit = pxDefault; render(); });
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  points = []; pxPerUnit = pxDefault; showGrid=false; showConstruct=false; snapOn=false; selectedIdx=null; render();
+});
+document.getElementById('exportSVG').addEventListener('click', ()=>{
+  if(points.length < 2){ alert('No polygon to export'); return; }
+  const svgW = canvas.width, svgH = canvas.height;
+  let path = '';
+  points.forEach((p,i)=>{ path += (i===0? 'M':'L') + p.x + ' ' + p.y + ' '; });
+  if(points.length >= 3) path += 'Z';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}"><path d="${path}" fill="none" stroke="#163aa2" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  const blob = new Blob([svg],{type:'image/svg+xml'}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'polygon.svg'; a.click(); URL.revokeObjectURL(url);
+});
+document.getElementById('exportPNG').addEventListener('click', ()=>{
+  const link = document.createElement('a'); link.download = 'polygon.png'; link.href = canvas.toDataURL('image/png'); link.click();
+});
+
+/* Info panel update */
+function updateInfoPanel(){
+  vCountEl.textContent = points.length;
+  selCountEl.textContent = selectedIdx === null ? 0 : 1;
+  periEl.textContent = points.length >= 2 ? round3(toUnitsLen(polygonPerimeter(points))) + ' units' : '—';
+  areaEl.textContent = points.length >= 3 ? round3(polygonArea(points)) + ' unit²' : '—';
+  ptypeEl.textContent = points.length >= 3 ? (isConvex(points) ? 'Convex' : 'Concave') : '—';
+  const bbox = polygonBoundingBox(points);
+  bboxEl.textContent = bbox ? `x:${bbox.x}, y:${bbox.y}, w:${bbox.w}, h:${bbox.h}` : '—';
+
+  // vertex list
+  vertexListEl.innerHTML = '';
+  for(let i=0;i<points.length;i++){
+    const li = document.createElement('div'); li.style.padding='6px 4px'; li.style.borderBottom='1px dashed #f0f0f0';
+    li.style.display='flex'; li.style.justifyContent='space-between'; li.style.alignItems='center';
+    const left = document.createElement('div'); left.innerHTML = `<strong>#${i}</strong> <div class="small">x:${Math.round(points[i].x)}, y:${Math.round(points[i].y)}</div>`;
+    const right = document.createElement('div'); right.style.textAlign='right';
+    const ang = angleAtIndex(i, points); const lenPrev = i>=0 ? toUnitsLen(distance(points[i], points[(i-1+points.length)%points.length])) : 0;
+    right.innerHTML = `<div class="small">θ:${ang?round3(ang)+'°':'—'}</div><div class="small">s:${points.length>1?round3(lenPrev):'—'}</div>`;
+    li.appendChild(left); li.appendChild(right);
+    // click to select
+    li.addEventListener('click', ()=>{ selectedIdx = i; render(); });
+    vertexListEl.appendChild(li);
+  }
+}
+
+/* utility: convert radians->deg */
+function toDeg(r){ return r*180/Math.PI; }
+
+/* initial quick demo points (optional) */
+(function seedDemo(){
+  const w = canvas.width, h = canvas.height;
+  points = [
+    {x: Math.round(w*0.25), y: Math.round(h*0.45)},
+    {x: Math.round(w*0.45), y: Math.round(h*0.25)},
+    {x: Math.round(w*0.7), y: Math.round(h*0.35)},
+    {x: Math.round(w*0.65), y: Math.round(h*0.65)},
+    {x: Math.round(w*0.4), y: Math.round(h*0.75)}
+  ];
+  render();
+})();
+
+</script>
+</body>
 </html>
